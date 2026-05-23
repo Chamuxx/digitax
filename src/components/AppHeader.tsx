@@ -30,18 +30,33 @@ export function AppHeader() {
             <div className="text-[11px] text-muted-foreground -mt-0.5">Property Assessment Portal</div>
           </div>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-6">
           {isLoaded && user && (
-            <>
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium leading-tight">{user.primaryEmailAddress?.emailAddress}</div>
-                <div className="text-xs text-muted-foreground capitalize">{role ?? "—"}</div>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-1.5" /> Sign out
-              </Button>
-            </>
+            <nav className="hidden md:flex gap-4 mr-4 text-sm font-medium">
+              {role === "admin" ? (
+                <>
+                  <Link href="/admin" className="text-muted-foreground hover:text-primary transition-colors">Assessments</Link>
+                  <Link href="/admin/properties/new" className="text-muted-foreground hover:text-primary transition-colors">New Property</Link>
+                </>
+              ) : (
+                <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">My Properties</Link>
+              )}
+            </nav>
           )}
+
+          <div className="flex items-center gap-3">
+            {isLoaded && user && (
+              <>
+                <div className="text-right hidden sm:block">
+                  <div className="text-sm font-medium leading-tight">{user.primaryEmailAddress?.emailAddress}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{role ?? "user"}</div>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-1.5" /> Sign out
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>
