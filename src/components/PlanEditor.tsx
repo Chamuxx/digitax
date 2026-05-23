@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useRef, useState } from "react";
 import { Point, polygonArea, sideLengths } from "@/lib/geometry";
 import { Button } from "@/components/ui/button";

@@ -1,21 +1,27 @@
+"use client";
+
 import { Building2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
-import { useNavigate, Link } from "react-router-dom";
+import { useUser, useClerk } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function AppHeader() {
-  const { user, role, signOut } = useAuth();
-  const nav = useNavigate();
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
 
   const handleSignOut = async () => {
     await signOut();
-    nav("/auth");
+    router.push("/sign-in");
   };
+
+  const role = user?.publicMetadata?.role as string | undefined;
 
   return (
     <header className="border-b bg-card/60 backdrop-blur-sm sticky top-0 z-30">
       <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2.5 group">
+        <Link href="/" className="flex items-center gap-2.5 group">
           <div className="h-9 w-9 rounded-lg bg-gradient-primary grid place-items-center shadow-glow group-hover:scale-105 transition-smooth">
             <Building2 className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -25,10 +31,10 @@ export function AppHeader() {
           </div>
         </Link>
         <div className="flex items-center gap-3">
-          {user && (
+          {isLoaded && user && (
             <>
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium leading-tight">{user.email}</div>
+                <div className="text-sm font-medium leading-tight">{user.primaryEmailAddress?.emailAddress}</div>
                 <div className="text-xs text-muted-foreground capitalize">{role ?? "—"}</div>
               </div>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
