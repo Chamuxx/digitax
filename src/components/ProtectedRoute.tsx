@@ -12,7 +12,7 @@ export function ProtectedRoute({ children, requireRole }: { children: ReactNode;
     if (isLoaded && !user) {
       router.replace("/sign-in");
     } else if (isLoaded && user && requireRole) {
-      const role = user.publicMetadata?.role;
+      const role = user.publicMetadata?.role || "user";
       if (role !== requireRole) {
         router.replace(role === "admin" ? "/admin" : "/dashboard");
       }
@@ -29,8 +29,11 @@ export function ProtectedRoute({ children, requireRole }: { children: ReactNode;
 
   if (!user) return null;
 
-  if (requireRole && user.publicMetadata?.role !== requireRole) {
-    return null;
+  if (requireRole) {
+    const role = user.publicMetadata?.role || "user";
+    if (role !== requireRole) {
+      return null;
+    }
   }
 
   return <>{children}</>;

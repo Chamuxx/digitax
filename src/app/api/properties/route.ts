@@ -20,11 +20,9 @@ export async function GET(req: Request) {
     let query: any = {};
 
     if (role === "admin") {
-      // Admin sees everything, but can filter by email or NIC
       if (assignedUserEmail) query.assignedUserEmail = assignedUserEmail;
       if (assignedUserNIC) query.assignedUserNIC = assignedUserNIC;
     } else {
-      // Normal user can only see properties assigned to their email (or NIC if we verify that)
       const primaryEmail = user.primaryEmailAddress?.emailAddress;
       if (!primaryEmail) {
         return NextResponse.json({ error: "User has no email" }, { status: 400 });
@@ -43,15 +41,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-    const { userId } = await auth();
+    const user = await currentUser();
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Usually we check if user is admin here
-    // For MVP, we'll allow creation if they hit this endpoint, 
-    // but in production, verify role === 'admin'
+    // Only admins can create properties
+    if (user.publicMetadata?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden — Admin only" }, { status: 403 });
+    }
+
     const body = await req.json();
     const newProperty = new Property(body);
     await newProperty.save();
