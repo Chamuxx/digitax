@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { MapPicker } from "@/components/MapPicker";
@@ -72,10 +72,56 @@ export default function NewProperty() {
   const [lastName, setLastName] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [userCreated, setUserCreated] = useState<{
-    isNew: boolean;
-    tempPassword?: string;
-  } | null>(null);
+
+  // NIC Search
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (nic.length < 3) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/admin/users/search?nic=${encodeURIComponent(nic)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+          setShowDropdown(data.length > 0);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [nic]);
+
+  const handleSelectUser = (user: any) => {
+    setNic(user.nic);
+    setEmail(user.email);
+    setFirstName(user.firstName || "");
+    setLastName(user.lastName || "");
+    setShowDropdown(false);
+  };
 
   // Live tax calc
   const taxAmount = useMemo(
@@ -98,28 +144,13 @@ export default function NewProperty() {
       return;
     }
     if (!email || !nic) {
-      toast.error("Please provide both Owner Email and NIC.");
+      toast.error("Please search and select a registered owner by NIC.");
       return;
     }
 
     setSaving(true);
     try {
-      // Step 1: Ensure user account exists
-      const userRes = await fetch("/api/admin/create-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, firstName, lastName }),
-      });
-      const userData = await userRes.json();
-      if (!userRes.ok) {
-        throw new Error(userData.error || "Failed to set up user account");
-      }
-      setUserCreated({
-        isNew: userData.isNew,
-        tempPassword: userData.tempPassword,
-      });
-
-      // Step 2: Save the property
+      // Save the property
       const propRes = await fetch("/api/properties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,14 +177,7 @@ export default function NewProperty() {
         throw new Error(await propRes.text());
       }
 
-      if (userData.isNew) {
-        toast.success(
-          `Property saved! New user account created. Temp password: ${userData.tempPassword}`,
-          { duration: 10000 }
-        );
-      } else {
-        toast.success("Property assessed and assigned successfully!");
-      }
+      toast.success("Property assessed and assigned successfully!");
       router.push("/admin");
     } catch (err: any) {
       toast.error(err.message || "Failed to save property");
@@ -413,57 +437,56 @@ export default function NewProperty() {
                     <div>
                       <CardTitle className="text-base">4. Owner Assignment</CardTitle>
                       <CardDescription className="text-xs">
-                        A user account will be created automatically if needed.
+                        Search and select a registered user by NIC.
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">First Name</Label>
-                      <Input
-                        id="first-name-input"
-                        className="h-9 text-sm"
-                        placeholder="Kamal"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Last Name</Label>
-                      <Input
-                        id="last-name-input"
-                        className="h-9 text-sm"
-                        placeholder="Perera"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Owner's Email *</Label>
-                    <Input
-                      id="owner-email-input"
-                      type="email"
-                      required
-                      className="h-9 text-sm"
-                      placeholder="owner@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Owner's NIC *</Label>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1.5 relative" ref={dropdownRef}>
+                    <Label className="text-xs">Search Owner NIC *</Label>
                     <Input
                       id="owner-nic-input"
                       required
                       className="h-9 text-sm"
-                      placeholder="199012345678"
+                      placeholder="e.g. 199012345678"
                       value={nic}
-                      onChange={(e) => setNic(e.target.value)}
+                      onChange={(e) => {
+                        setNic(e.target.value);
+                        if (email) setEmail(""); // Reset selection if they type
+                      }}
+                      onFocus={() => {
+                        if (searchResults.length > 0) setShowDropdown(true);
+                      }}
                     />
+                    {isSearching && (
+                      <div className="absolute right-3 top-8">
+                        <div className="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                    {showDropdown && searchResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover text-popover-foreground border rounded-md shadow-md max-h-48 overflow-y-auto">
+                        {searchResults.map((u) => (
+                          <div
+                            key={u.clerkId}
+                            className="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b last:border-0"
+                            onClick={() => handleSelectUser(u)}
+                          >
+                            <div className="font-medium">{u.nic}</div>
+                            <div className="text-xs text-muted-foreground">{u.firstName} {u.lastName} • {u.email}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {email && (
+                    <div className="p-3 bg-muted/40 border border-border/50 rounded-lg space-y-1">
+                      <div className="text-xs text-muted-foreground">Selected Owner</div>
+                      <div className="font-medium text-sm">{firstName} {lastName}</div>
+                      <div className="text-xs text-muted-foreground">{email}</div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

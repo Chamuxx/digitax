@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { Property } from "@/lib/models/Property";
+import { User } from "@/lib/models/User";
 import { auth, currentUser } from "@clerk/nextjs/server";
 
 export async function GET(req: Request) {
@@ -23,11 +24,12 @@ export async function GET(req: Request) {
       if (assignedUserEmail) query.assignedUserEmail = assignedUserEmail;
       if (assignedUserNIC) query.assignedUserNIC = assignedUserNIC;
     } else {
-      const primaryEmail = user.primaryEmailAddress?.emailAddress;
-      if (!primaryEmail) {
-        return NextResponse.json({ error: "User has no email" }, { status: 400 });
+      const dbUser = await User.findOne({ clerkId: user.id });
+      if (!dbUser || !dbUser.nic) {
+        // If the user hasn't set up an NIC yet, they can't have any properties
+        return NextResponse.json([]);
       }
-      query.assignedUserEmail = primaryEmail;
+      query.assignedUserNIC = dbUser.nic;
     }
 
     const properties = await Property.find(query).sort({ createdAt: -1 });

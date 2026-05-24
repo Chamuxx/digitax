@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardHeader,
@@ -19,10 +20,21 @@ export default function UserDashboard() {
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useUser();
+  const router = useRouter();
 
   useEffect(() => {
-    async function fetchProperties() {
+    async function initDashboard() {
       try {
+        // First check profile to see if NIC exists
+        const profileRes = await fetch("/api/user/profile");
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (!profileData.exists || !profileData.user?.nic) {
+            router.push("/onboarding");
+            return;
+          }
+        }
+
         const res = await fetch("/api/properties");
         if (res.ok) {
           const data = await res.json();
@@ -34,8 +46,8 @@ export default function UserDashboard() {
         setLoading(false);
       }
     }
-    fetchProperties();
-  }, []);
+    initDashboard();
+  }, [router]);
 
   const totalTax = properties.reduce((acc, p) => acc + p.taxAmount, 0);
 
