@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser, clerkClient } from "@clerk/nextjs/server";
+import connectToDatabase from "@/lib/mongodb";
+import { User } from "@/lib/models/User";
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { email, firstName, lastName } = await req.json();
+    const { email, firstName, lastName, nic } = await req.json();
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -30,6 +32,25 @@ export async function POST(req: Request) {
           publicMetadata: { role: "user" },
         });
       }
+
+      await connectToDatabase();
+      const dbUser = await User.findOne({ clerkId: existing.id });
+      if (dbUser) {
+        if (nic && !dbUser.nic) {
+          dbUser.nic = nic;
+          await dbUser.save();
+        }
+      } else {
+        await User.create({
+          clerkId: existing.id,
+          email: existing.emailAddresses[0].emailAddress,
+          firstName: existing.firstName,
+          lastName: existing.lastName,
+          nic,
+          role: "user"
+        });
+      }
+
       return NextResponse.json({
         message: "User already exists",
         userId: existing.id,
@@ -55,6 +76,16 @@ export async function POST(req: Request) {
       lastName: lastName || undefined,
       publicMetadata: { role: "user" },
       skipPasswordChecks: false,
+    });
+
+    await connectToDatabase();
+    await User.create({
+      clerkId: newUser.id,
+      email: email,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      nic,
+      role: "user"
     });
 
     return NextResponse.json({

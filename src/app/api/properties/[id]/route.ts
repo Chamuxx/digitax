@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { Property } from "@/lib/models/Property";
+import { User } from "@/lib/models/User";
 import { currentUser } from "@clerk/nextjs/server";
 
 export async function GET(
@@ -23,10 +24,12 @@ export async function GET(
     }
 
     const role = user.publicMetadata?.role;
-    const primaryEmail = user.primaryEmailAddress?.emailAddress;
 
-    if (role !== "admin" && property.assignedUserEmail !== primaryEmail) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (role !== "admin") {
+      const dbUser = await User.findOne({ clerkId: user.id });
+      if (!dbUser || property.assignedUserNIC !== dbUser.nic) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     return NextResponse.json(property);

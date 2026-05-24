@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardHeader,
@@ -9,7 +10,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Home, MapPin, TrendingUp, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Home, MapPin, TrendingUp, ArrowRight, Plus, Clock } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useUser } from "@clerk/nextjs";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -17,16 +19,36 @@ import { Badge } from "@/components/ui/badge";
 
 export default function UserDashboard() {
   const [properties, setProperties] = useState<any[]>([]);
+  const [declaredProperties, setDeclaredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useUser();
+  const router = useRouter();
 
   useEffect(() => {
-    async function fetchProperties() {
+    async function initDashboard() {
       try {
-        const res = await fetch("/api/properties");
+        // First check profile to see if NIC exists
+        const profileRes = await fetch("/api/user/profile");
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (!profileData.exists || !profileData.user?.nic) {
+            router.push("/onboarding");
+            return;
+          }
+        }
+
+        const [res, declaredRes] = await Promise.all([
+          fetch("/api/properties"),
+          fetch("/api/declared-properties")
+        ]);
+
         if (res.ok) {
           const data = await res.json();
           setProperties(data);
+        }
+        if (declaredRes.ok) {
+          const declaredData = await declaredRes.json();
+          setDeclaredProperties(declaredData);
         }
       } catch (e) {
         console.error(e);
@@ -34,8 +56,8 @@ export default function UserDashboard() {
         setLoading(false);
       }
     }
-    fetchProperties();
-  }, []);
+    initDashboard();
+  }, [router]);
 
   const totalTax = properties.reduce((acc, p) => acc + p.taxAmount, 0);
 
@@ -45,19 +67,27 @@ export default function UserDashboard() {
         <AppHeader />
         <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
           {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-1">
-              <Home className="h-5 w-5 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight">My Properties</h1>
+          <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Home className="h-5 w-5 text-primary" />
+                <h1 className="text-2xl font-bold tracking-tight">My Properties</h1>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                Welcome back,{" "}
+                <span className="text-foreground font-medium">
+                  {user?.firstName || user?.primaryEmailAddress?.emailAddress}
+                </span>
+                . View your assessed properties and tax details below.
+              </p>
             </div>
-            <p className="text-muted-foreground text-sm">
-              Welcome back,{" "}
-              <span className="text-foreground font-medium">
-                {user?.firstName || user?.primaryEmailAddress?.emailAddress}
-              </span>
-              . View your assessed properties and tax details below.
-            </p>
+            <Link href="/dashboard/declare">
+              <Button className="bg-primary text-primary-foreground shadow-glow-sm hover:shadow-glow transition-all font-semibold flex items-center gap-2 h-10">
+                <Plus className="h-4 w-4" /> Declare New Property
+              </Button>
+            </Link>
           </div>
+
 
           {/* Summary card — only shown if there are properties */}
           {!loading && properties.length > 0 && (
@@ -96,7 +126,41 @@ export default function UserDashboard() {
             </div>
           )}
 
-          {/* Properties */}
+          {/* Pending Declarations */}
+          {!loading && declaredProperties.filter(p => p.status === 'pending').length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-orange-400" /> Pending Assessments
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {declaredProperties.filter(p => p.status === 'pending').map((prop) => (
+                  <Card key={prop._id} className="border-border/50 bg-card/60 backdrop-blur-xl">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-sm font-semibold">{prop.address}</CardTitle>
+                          <CardDescription className="text-xs mt-0.5">
+                            Owner: {prop.fullName} ({prop.phone})
+                          </CardDescription>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-orange-400 border-orange-400/30 bg-orange-400/10">
+                          Pending
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0 text-xs text-muted-foreground">
+                      Submitted on {new Date(prop.createdAt).toLocaleDateString("en-LK")}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Assessed Properties */}
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-primary" /> Assessed Properties
+          </h2>
           {loading ? (
             <div className="grid place-items-center h-48">
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
@@ -123,7 +187,7 @@ export default function UserDashboard() {
                         <div>
                           <CardTitle className="text-sm font-semibold flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-primary flex-shrink-0" />
-                            Assessed Property
+                            {prop.address || "Assessed Property"}
                           </CardTitle>
                           <CardDescription className="text-xs mt-0.5">
                             NIC: {prop.assignedUserNIC}

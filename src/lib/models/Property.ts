@@ -7,6 +7,7 @@ export interface IProperty extends Document {
   };
   area: number;
   geometry: { x: number; y: number }[];
+  floorGeometries?: { x: number; y: number }[][];
   attributes: {
     flooring: string;
     floors: number;
@@ -19,6 +20,8 @@ export interface IProperty extends Document {
   taxAmount: number;
   assignedUserEmail: string;
   assignedUserNIC: string;
+  address?: string;
+  phone?: string;
   createdAt: Date;
 }
 
@@ -34,6 +37,10 @@ const PropertySchema: Schema = new Schema({
       y: { type: Number, required: true },
     },
   ],
+  floorGeometries: {
+    type: [[{ x: { type: Number }, y: { type: Number } }]],
+    default: undefined,
+  },
   attributes: {
     flooring: { type: String, required: true, default: "cement" },
     floors: { type: Number, required: true, default: 1 },
@@ -46,6 +53,8 @@ const PropertySchema: Schema = new Schema({
   taxAmount: { type: Number, required: true },
   assignedUserEmail: { type: String, required: true },
   assignedUserNIC: { type: String, required: true },
+  address: { type: String },
+  phone: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
 

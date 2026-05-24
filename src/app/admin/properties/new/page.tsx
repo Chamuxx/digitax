@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { MapPicker } from "@/components/MapPicker";
@@ -37,6 +37,8 @@ import {
   ChevronLeft,
   Info,
   CheckCircle2,
+  User,
+  Phone,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -48,10 +50,10 @@ export default function NewProperty() {
   const [lng, setLng] = useState(79.8612);
 
   // Geometry
-  const [points, setPoints] = useState<Point[]>([]);
+  const [floorPoints, setFloorPoints] = useState<Point[][]>([[]]);
   const area = useMemo(
-    () => (points.length >= 3 ? polygonArea(points) : 0),
-    [points]
+    () => floorPoints.reduce((acc, pts) => acc + (pts.length >= 3 ? polygonArea(pts) : 0), 0),
+    [floorPoints]
   );
 
   // Attributes
@@ -65,17 +67,79 @@ export default function NewProperty() {
     new Date().getFullYear()
   );
 
+  useEffect(() => {
+    setFloorPoints((prev) => {
+      if (prev.length === floors) return prev;
+      if (prev.length < floors) {
+        return [...prev, ...Array.from({ length: floors - prev.length }, () => [])];
+      }
+      return prev.slice(0, floors);
+    });
+  }, [floors]);
+
   // Assignment
   const [email, setEmail] = useState("");
   const [nic, setNic] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [declaredPropertyId, setDeclaredPropertyId] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [userCreated, setUserCreated] = useState<{
-    isNew: boolean;
-    tempPassword?: string;
-  } | null>(null);
+
+  // NIC Search
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (nic.length < 3) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/admin/declared-properties/search?nic=${encodeURIComponent(nic)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+          setShowDropdown(data.length > 0);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [nic]);
+
+  const handleSelectUser = (property: any) => {
+    setNic(property.userNIC);
+    setFirstName(property.fullName);
+    setLastName(""); // the full name is just stored in firstName here for display
+    setAddress(property.address);
+    setPhone(property.phone);
+    setDeclaredPropertyId(property._id);
+    setEmail("assigned-via-nic@digitax.local"); // fallback since we don't have email in declared prop right now, though it's linked by NIC anyway.
+    setShowDropdown(false);
+  };
 
   // Live tax calc
   const taxAmount = useMemo(
@@ -87,46 +151,32 @@ export default function NewProperty() {
         hasGarage,
         gardenSize,
         usage,
-      }),
+      }, true), // isMultiFloorDrawn = true
     [area, flooring, floors, hasPool, hasGarage, gardenSize, usage]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (points.length < 3) {
-      toast.error("Please draw a closed house plan with at least 3 points.");
+    if (floorPoints.some((pts) => pts.length < 3)) {
+      toast.error("Please ensure all requested floors have a closed footprint with at least 3 points.");
       return;
     }
     if (!email || !nic) {
-      toast.error("Please provide both Owner Email and NIC.");
+      toast.error("Please search and select a registered owner by NIC.");
       return;
     }
 
     setSaving(true);
     try {
-      // Step 1: Ensure user account exists
-      const userRes = await fetch("/api/admin/create-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, firstName, lastName }),
-      });
-      const userData = await userRes.json();
-      if (!userRes.ok) {
-        throw new Error(userData.error || "Failed to set up user account");
-      }
-      setUserCreated({
-        isNew: userData.isNew,
-        tempPassword: userData.tempPassword,
-      });
-
-      // Step 2: Save the property
+      // Save the property
       const propRes = await fetch("/api/properties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           location: { lat, lng },
           area,
-          geometry: points,
+          geometry: floorPoints[0], // ground floor
+          floorGeometries: floorPoints, // all floors
           attributes: {
             flooring,
             floors,
@@ -139,6 +189,7 @@ export default function NewProperty() {
           taxAmount,
           assignedUserEmail: email,
           assignedUserNIC: nic,
+          declaredPropertyId,
         }),
       });
 
@@ -146,14 +197,7 @@ export default function NewProperty() {
         throw new Error(await propRes.text());
       }
 
-      if (userData.isNew) {
-        toast.success(
-          `Property saved! New user account created. Temp password: ${userData.tempPassword}`,
-          { duration: 10000 }
-        );
-      } else {
-        toast.success("Property assessed and assigned successfully!");
-      }
+      toast.success("Property assessed and assigned successfully!");
       router.push("/admin");
     } catch (err: any) {
       toast.error(err.message || "Failed to save property");
@@ -262,12 +306,41 @@ export default function NewProperty() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <PlanEditor
-                    value={points}
-                    onChange={setPoints}
-                    height={380}
-                  />
+                <CardContent className="space-y-6">
+                  {floorPoints.map((pts, idx) => {
+                    const isGround = idx === 0;
+                    // Upper floors are locked until the floor immediately below is closed (length >= 3)
+                    const prevFloorComplete = isGround || floorPoints[idx - 1].length >= 3;
+                    const isReadOnly = !prevFloorComplete;
+
+                    return (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-primary">
+                            {isGround ? "Ground Floor" : `Floor ${idx + 1}`}
+                          </h4>
+                          {!isGround && !prevFloorComplete && (
+                            <span className="text-xs text-orange-500 font-medium">
+                              Complete Floor {idx} first
+                            </span>
+                          )}
+                        </div>
+                        <PlanEditor
+                          value={pts}
+                          onChange={(newPts) => {
+                            setFloorPoints((prev) => {
+                              const newFloorPoints = [...prev];
+                              newFloorPoints[idx] = newPts;
+                              return newFloorPoints;
+                            });
+                          }}
+                          readOnly={isReadOnly}
+                          referencePolygon={!isGround ? floorPoints[0] : undefined}
+                          height={isGround ? 360 : 300}
+                        />
+                      </div>
+                    );
+                  })}
                   {area > 0 && (
                     <div className="mt-2 flex items-center gap-2 text-xs">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
@@ -413,57 +486,92 @@ export default function NewProperty() {
                     <div>
                       <CardTitle className="text-base">4. Owner Assignment</CardTitle>
                       <CardDescription className="text-xs">
-                        A user account will be created automatically if needed.
+                        Search and select a registered user by NIC.
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">First Name</Label>
-                      <Input
-                        id="first-name-input"
-                        className="h-9 text-sm"
-                        placeholder="Kamal"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Last Name</Label>
-                      <Input
-                        id="last-name-input"
-                        className="h-9 text-sm"
-                        placeholder="Perera"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Owner's Email *</Label>
-                    <Input
-                      id="owner-email-input"
-                      type="email"
-                      required
-                      className="h-9 text-sm"
-                      placeholder="owner@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Owner's NIC *</Label>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1.5 relative" ref={dropdownRef}>
+                    <Label className="text-xs">Search Owner NIC *</Label>
                     <Input
                       id="owner-nic-input"
                       required
                       className="h-9 text-sm"
-                      placeholder="199012345678"
+                      placeholder="e.g. 199012345678"
                       value={nic}
-                      onChange={(e) => setNic(e.target.value)}
+                      onChange={(e) => {
+                        setNic(e.target.value);
+                        if (declaredPropertyId) {
+                          setDeclaredPropertyId("");
+                          setAddress("");
+                          setPhone("");
+                        }
+                      }}
+                      onFocus={() => {
+                        if (searchResults.length > 0) setShowDropdown(true);
+                      }}
                     />
+                    {isSearching && (
+                      <div className="absolute right-3 top-8">
+                        <div className="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                    {showDropdown && searchResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover text-popover-foreground border rounded-md shadow-md max-h-48 overflow-y-auto">
+                        {searchResults.map((p) => (
+                          <div
+                            key={p._id}
+                            className="px-3 py-2.5 text-sm hover:bg-accent cursor-pointer border-b last:border-0 flex flex-col gap-1"
+                            onClick={() => handleSelectUser(p)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-primary">{p.address}</span>
+                              <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-600 border-orange-200">Pending</Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground flex flex-col gap-0.5 mt-0.5">
+                              <span className="flex items-center gap-1"><User className="h-3 w-3" /> {p.fullName} (NIC: {p.userNIC})</span>
+                              <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {p.phone}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {declaredPropertyId && (
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3 shadow-inner mt-4">
+                      <div className="flex items-center gap-2 pb-2 border-b border-primary/10">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-sm text-primary">Property Selected</span>
+                      </div>
+                      <div className="grid gap-3">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Address</div>
+                            <div className="text-sm font-medium">{address}</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex items-start gap-2">
+                            <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Owner</div>
+                              <div className="text-sm font-medium">{firstName}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Contact</div>
+                              <div className="text-sm font-medium">{phone}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -479,11 +587,7 @@ export default function NewProperty() {
                 </CardHeader>
                 <CardContent className="space-y-2.5">
                   {[
-                    { label: "Footprint Area", value: `${area.toFixed(1)} ft²` },
-                    {
-                      label: `Effective Area (×${floors})`,
-                      value: `${(area * floors).toFixed(1)} ft²`,
-                    },
+                    { label: "Total Drawn Area", value: `${area.toFixed(1)} ft²` },
                     {
                       label: "Base Rate",
                       value: "LKR 10 / ft²",

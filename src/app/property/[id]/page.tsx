@@ -26,6 +26,7 @@ import {
   Building2,
   Trash2,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 
@@ -34,6 +35,7 @@ interface PropertyData {
   location: { lat: number; lng: number };
   area: number;
   geometry: { x: number; y: number }[];
+  floorGeometries?: { x: number; y: number }[][];
   attributes: {
     flooring: string;
     floors: number;
@@ -247,16 +249,41 @@ export default function PropertyDetails() {
                     House Footprint
                   </CardTitle>
                   <span className="text-xs text-muted-foreground">
-                    Area: <span className="font-semibold text-foreground">{property.area.toFixed(2)} ft²</span>
+                    Total Area: <span className="font-semibold text-foreground">{property.area.toFixed(2)} ft²</span>
                   </span>
                 </div>
               </CardHeader>
               <CardContent>
-                <PlanEditor
-                  value={property.geometry}
-                  readOnly
-                  height={320}
-                />
+                {property.floorGeometries && property.floorGeometries.length > 1 ? (
+                  <Tabs defaultValue="floor-0" className="w-full">
+                    <TabsList className="mb-4 flex flex-wrap h-auto gap-1 bg-transparent p-0">
+                      {property.floorGeometries.map((_, idx) => (
+                        <TabsTrigger
+                          key={idx}
+                          value={`floor-${idx}`}
+                          className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border"
+                        >
+                          {idx === 0 ? "Ground Floor" : `Floor ${idx + 1}`}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {property.floorGeometries.map((geom, idx) => (
+                      <TabsContent key={idx} value={`floor-${idx}`} className="mt-0">
+                        <PlanEditor
+                          value={geom}
+                          readOnly
+                          height={320}
+                        />
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                ) : (
+                  <PlanEditor
+                    value={property.geometry}
+                    readOnly
+                    height={320}
+                  />
+                )}
               </CardContent>
             </Card>
           </div>
@@ -374,14 +401,23 @@ export default function PropertyDetails() {
               </CardHeader>
               <CardContent className="space-y-2.5">
                 {[
-                  {
-                    label: "Base Area",
-                    value: `${property.area.toFixed(1)} ft²`,
-                  },
-                  {
-                    label: `Effective Area (×${property.attributes.floors})`,
-                    value: `${(property.area * property.attributes.floors).toFixed(1)} ft²`,
-                  },
+                  ...(property.floorGeometries && property.floorGeometries.length > 0
+                    ? [
+                        {
+                          label: "Total Drawn Area",
+                          value: `${property.area.toFixed(1)} ft²`,
+                        },
+                      ]
+                    : [
+                        {
+                          label: "Base Area",
+                          value: `${property.area.toFixed(1)} ft²`,
+                        },
+                        {
+                          label: `Effective Area (×${property.attributes.floors})`,
+                          value: `${(property.area * property.attributes.floors).toFixed(1)} ft²`,
+                        },
+                      ]),
                   { label: "Base Rate", value: "LKR 10 / ft²" },
                 ].map((row) => (
                   <div
