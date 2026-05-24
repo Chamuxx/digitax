@@ -42,10 +42,14 @@ export async function POST(req: Request) {
       Math.random().toString(36).slice(2, 10) +
       Math.random().toString(36).slice(2, 6).toUpperCase() +
       "!7";
+      
+    // Generate a unique username based on the email
+    const username = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "").toLowerCase() + Math.random().toString(36).slice(2, 6);
 
     // Create the user
     const newUser = await clerk.users.createUser({
       emailAddress: [email],
+      username,
       password: tempPassword,
       firstName: firstName || undefined,
       lastName: lastName || undefined,

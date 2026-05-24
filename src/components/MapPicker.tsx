@@ -17,6 +17,7 @@ export function MapPicker({ lat, lng, onChange, readOnly, height = 320 }: Props)
   const markerRef = useRef<any>(null);
 
   useEffect(() => {
+    let isMounted = true;
     if (!ref.current || mapRef.current || typeof window === 'undefined') return;
 
     // Dynamically import leaflet to avoid SSR issues
@@ -24,6 +25,12 @@ export function MapPicker({ lat, lng, onChange, readOnly, height = 320 }: Props)
       import("leaflet/dist/images/marker-icon.png").then((iconUrl) => {
         import("leaflet/dist/images/marker-icon-2x.png").then((iconRetinaUrl) => {
           import("leaflet/dist/images/marker-shadow.png").then((shadowUrl) => {
+            if (!isMounted || !ref.current) return;
+            
+            // Check if container already initialized (prevents strict mode crash)
+            const container = ref.current as any;
+            if (container._leaflet_id || mapRef.current) return;
+
             const getUrl = (mod: any) => typeof mod.default === 'string' ? mod.default : (mod.default?.src || mod.src || mod);
 
             const DefaultIcon = L.icon({
@@ -59,6 +66,7 @@ export function MapPicker({ lat, lng, onChange, readOnly, height = 320 }: Props)
     });
 
     return () => { 
+      isMounted = false;
       if (mapRef.current) {
         mapRef.current.remove(); 
         mapRef.current = null;
