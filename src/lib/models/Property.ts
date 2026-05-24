@@ -19,6 +19,8 @@ export interface IProperty extends Document {
   taxAmount: number;
   assignedUserEmail: string;
   assignedUserNIC: string;
+  address?: string;
+  phone?: string;
   createdAt: Date;
 }
 
@@ -46,6 +48,8 @@ const PropertySchema: Schema = new Schema({
   taxAmount: { type: Number, required: true },
   assignedUserEmail: { type: String, required: true },
   assignedUserNIC: { type: String, required: true },
+  address: { type: String },
+  phone: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
 

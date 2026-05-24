@@ -70,6 +70,9 @@ export default function NewProperty() {
   const [nic, setNic] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [declaredPropertyId, setDeclaredPropertyId] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -99,7 +102,7 @@ export default function NewProperty() {
     const timeoutId = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(`/api/admin/users/search?nic=${encodeURIComponent(nic)}`);
+        const res = await fetch(`/api/admin/declared-properties/search?nic=${encodeURIComponent(nic)}`);
         if (res.ok) {
           const data = await res.json();
           setSearchResults(data);
@@ -115,11 +118,14 @@ export default function NewProperty() {
     return () => clearTimeout(timeoutId);
   }, [nic]);
 
-  const handleSelectUser = (user: any) => {
-    setNic(user.nic);
-    setEmail(user.email);
-    setFirstName(user.firstName || "");
-    setLastName(user.lastName || "");
+  const handleSelectUser = (property: any) => {
+    setNic(property.userNIC);
+    setFirstName(property.fullName);
+    setLastName(""); // the full name is just stored in firstName here for display
+    setAddress(property.address);
+    setPhone(property.phone);
+    setDeclaredPropertyId(property._id);
+    setEmail("assigned-via-nic@digitax.local"); // fallback since we don't have email in declared prop right now, though it's linked by NIC anyway.
     setShowDropdown(false);
   };
 
@@ -170,6 +176,7 @@ export default function NewProperty() {
           taxAmount,
           assignedUserEmail: email,
           assignedUserNIC: nic,
+          declaredPropertyId,
         }),
       });
 
@@ -453,7 +460,11 @@ export default function NewProperty() {
                       value={nic}
                       onChange={(e) => {
                         setNic(e.target.value);
-                        if (email) setEmail(""); // Reset selection if they type
+                        if (declaredPropertyId) {
+                          setDeclaredPropertyId("");
+                          setAddress("");
+                          setPhone("");
+                        }
                       }}
                       onFocus={() => {
                         if (searchResults.length > 0) setShowDropdown(true);
@@ -466,25 +477,25 @@ export default function NewProperty() {
                     )}
                     {showDropdown && searchResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover text-popover-foreground border rounded-md shadow-md max-h-48 overflow-y-auto">
-                        {searchResults.map((u) => (
+                        {searchResults.map((p) => (
                           <div
-                            key={u.clerkId}
+                            key={p._id}
                             className="px-3 py-2 text-sm hover:bg-accent cursor-pointer border-b last:border-0"
-                            onClick={() => handleSelectUser(u)}
+                            onClick={() => handleSelectUser(p)}
                           >
-                            <div className="font-medium">{u.nic}</div>
-                            <div className="text-xs text-muted-foreground">{u.firstName} {u.lastName} • {u.email}</div>
+                            <div className="font-medium">{p.address}</div>
+                            <div className="text-xs text-muted-foreground">{p.userNIC} • {p.fullName} • {p.phone}</div>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {email && (
+                  {declaredPropertyId && (
                     <div className="p-3 bg-muted/40 border border-border/50 rounded-lg space-y-1">
-                      <div className="text-xs text-muted-foreground">Selected Owner</div>
-                      <div className="font-medium text-sm">{firstName} {lastName}</div>
-                      <div className="text-xs text-muted-foreground">{email}</div>
+                      <div className="text-xs text-muted-foreground">Selected Property</div>
+                      <div className="font-medium text-sm">{address}</div>
+                      <div className="text-xs text-muted-foreground">{firstName} • {phone}</div>
                     </div>
                   )}
                 </CardContent>
