@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Point, polygonArea, sideLengths } from "@/lib/geometry";
 import { Button } from "@/components/ui/button";
-import { Undo2, Trash2, Check } from "lucide-react";
+import { Undo2, Trash2, Check, Maximize, Minimize } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -22,16 +22,24 @@ export function PlanEditor({ value, onChange, readOnly = false, referencePolygon
   const svgRef = useRef<SVGSVGElement>(null);
   const [closed, setClosed] = useState(value.length >= 3);
   const [mousePos, setMousePos] = useState<Point | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const points = value;
 
   const getSnappedPoint = (e: React.MouseEvent<SVGSVGElement> | React.PointerEvent<SVGSVGElement>) => {
-    const rect = svgRef.current!.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    const svg = svgRef.current!;
+    let pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    
+    const ctm = svg.getScreenCTM();
+    if (ctm) {
+      pt = pt.matrixTransform(ctm.inverse());
+    }
+    
     return {
-      x: Math.round(px / scale),
-      y: Math.round(py / scale)
+      x: Math.round(pt.x / scale),
+      y: Math.round(pt.y / scale)
     };
   };
 
@@ -51,6 +59,40 @@ export function PlanEditor({ value, onChange, readOnly = false, referencePolygon
     if (!mousePos || points.length < 3) return false;
     return mousePos.x === points[0].x && mousePos.y === points[0].y;
   }, [mousePos, points]);
+
+  const rightAngleData = useMemo(() => {
+    if (points.length < 2 || !mousePos || closed) return null;
+    const p1 = points[points.length - 2];
+    const p2 = points[points.length - 1];
+    
+    // v1 is vector from p2 to p1
+    const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+    // v2 is vector from p2 to mousePos
+    const v2 = { x: mousePos.x - p2.x, y: mousePos.y - p2.y };
+    
+    if ((v1.x === 0 && v1.y === 0) || (v2.x === 0 && v2.y === 0)) return null;
+    
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    // Right angle if dot product is 0
+    if (dot === 0) {
+      const len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+      const len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+      // Normalized vectors
+      const nv1 = { x: v1.x / len1, y: v1.y / len1 };
+      const nv2 = { x: v2.x / len2, y: v2.y / len2 };
+      
+      const size = 0.8; // size of the corner square in grid units
+      // We only draw it if the lines are long enough to fit the square
+      if (len1 < size || len2 < size) return null;
+      
+      const ptA = { x: p2.x + nv1.x * size, y: p2.y + nv1.y * size };
+      const ptB = { x: ptA.x + nv2.x * size, y: ptA.y + nv2.y * size };
+      const ptC = { x: p2.x + nv2.x * size, y: p2.y + nv2.y * size };
+      
+      return { ptA, ptB, ptC };
+    }
+    return null;
+  }, [points, mousePos, closed]);
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (readOnly || closed) return;
@@ -87,10 +129,12 @@ export function PlanEditor({ value, onChange, readOnly = false, referencePolygon
 
   const ptsStr = points.map(p => `${p.x * scale},${p.y * scale}`).join(" ");
   const refPtsStr = referencePolygon?.map(p => `${p.x * scale},${p.y * scale}`).join(" ");
-  const gridSize = scale * 5; // 5 ft
+  const gridSize = scale; // 1 ft
+
+  const toggleFullscreen = () => setIsFullscreen(!isFullscreen);
 
   return (
-    <div className="space-y-3">
+    <div className={cn("space-y-3", isFullscreen ? "fixed inset-0 z-50 bg-background/95 backdrop-blur-sm p-6 flex flex-col" : "")}>
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm text-muted-foreground">
           {readOnly
@@ -98,27 +142,32 @@ export function PlanEditor({ value, onChange, readOnly = false, referencePolygon
             : closed
               ? `Closed · Area: ${area.toFixed(1)} ft²`
               : points.length === 0 
-                ? "Click to start drawing. Each grid square = 5 ft."
+                ? "Click to start drawing. Each grid square = 1 ft."
                 : points.length < 3 
                   ? "Click to add corners."
                   : "Click start point or 'Close shape' to finish."}
         </div>
-        {!readOnly && (
-          <div className="flex gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={undo} disabled={!points.length || closed}>
-              <Undo2 className="h-4 w-4" />
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={clear} disabled={!points.length}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-            <Button type="button" size="sm" onClick={close} disabled={points.length < 3 || closed}>
-              <Check className="h-4 w-4 mr-1" /> Close shape
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={toggleFullscreen}>
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          </Button>
+          {!readOnly && (
+            <>
+              <Button type="button" size="sm" variant="outline" onClick={undo} disabled={!points.length || closed}>
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={clear} disabled={!points.length}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="sm" onClick={close} disabled={points.length < 3 || closed}>
+                <Check className="h-4 w-4 mr-1" /> Close shape
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="border rounded-lg overflow-hidden bg-muted/30 relative" style={{ height }}>
+      <div className={cn("border rounded-lg overflow-hidden bg-muted/30 relative", isFullscreen ? "flex-1" : "")} style={!isFullscreen ? { height } : undefined}>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${SVG_W} ${height}`}
@@ -167,15 +216,38 @@ export function PlanEditor({ value, onChange, readOnly = false, referencePolygon
 
           {/* Preview line from last point to mouse cursor */}
           {!closed && points.length > 0 && mousePos && (
-             <line 
-                x1={points[points.length - 1].x * scale} 
-                y1={points[points.length - 1].y * scale}
-                x2={mousePos.x * scale}
-                y2={mousePos.y * scale}
-                stroke={isHoveringStart ? "hsl(var(--emerald-500, 150 80% 40%))" : "hsl(var(--primary) / 0.5)"}
-                strokeWidth="2"
-                strokeDasharray="4 4"
-             />
+             <g>
+               <line 
+                  x1={points[points.length - 1].x * scale} 
+                  y1={points[points.length - 1].y * scale}
+                  x2={mousePos.x * scale}
+                  y2={mousePos.y * scale}
+                  stroke={isHoveringStart ? "hsl(var(--emerald-500, 150 80% 40%))" : rightAngleData ? "hsl(var(--orange-500, 24.6 95% 53.1%))" : "hsl(var(--primary) / 0.5)"}
+                  strokeWidth="2"
+                  strokeDasharray={rightAngleData ? "none" : "4 4"}
+               />
+               {!isHoveringStart && (
+                 <text 
+                   x={((points[points.length - 1].x + mousePos.x) / 2) * scale} 
+                   y={(((points[points.length - 1].y + mousePos.y) / 2) * scale) - 8} 
+                   textAnchor="middle"
+                   className="fill-primary transition-all duration-100" 
+                   style={{ fontSize: 12, fontWeight: 700, paintOrder: "stroke", stroke: "hsl(var(--background))", strokeWidth: 3 }}
+                 >
+                   {Math.sqrt(Math.pow(mousePos.x - points[points.length - 1].x, 2) + Math.pow(mousePos.y - points[points.length - 1].y, 2)).toFixed(1)} ft
+                 </text>
+               )}
+               {rightAngleData && (
+                 <polyline 
+                   points={`${rightAngleData.ptA.x * scale},${rightAngleData.ptA.y * scale} ${rightAngleData.ptB.x * scale},${rightAngleData.ptB.y * scale} ${rightAngleData.ptC.x * scale},${rightAngleData.ptC.y * scale}`}
+                   fill="none"
+                   stroke="hsl(var(--orange-500, 24.6 95% 53.1%))"
+                   strokeWidth="2"
+                   strokeLinecap="round"
+                   strokeLinejoin="round"
+                 />
+               )}
+             </g>
           )}
           
           {/* If hovering start and polygon can be closed, fill the tentative polygon lightly */}

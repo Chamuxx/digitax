@@ -96,6 +96,12 @@
   }
 }
 
+@layer components {
+  .container {
+    @apply mx-auto w-full max-w-[1400px] px-6 md:px-16 lg:px-24;
+  }
+}
+
 /* === Custom Utilities === */
 @layer utilities {
   .bg-gradient-primary {
