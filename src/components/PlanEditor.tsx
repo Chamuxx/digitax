@@ -10,6 +10,7 @@ interface Props {
   value: Point[];
   onChange?: (pts: Point[]) => void;
   readOnly?: boolean;
+  referencePolygon?: Point[];
   /** scale: pixels per foot (display only) */
   scale?: number;
   height?: number;
@@ -17,7 +18,7 @@ interface Props {
 
 const SVG_W = 600;
 
-export function PlanEditor({ value, onChange, readOnly = false, scale = 6, height = 360 }: Props) {
+export function PlanEditor({ value, onChange, readOnly = false, referencePolygon, scale = 6, height = 360 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [closed, setClosed] = useState(value.length >= 3);
   const [mousePos, setMousePos] = useState<Point | null>(null);
@@ -85,6 +86,7 @@ export function PlanEditor({ value, onChange, readOnly = false, scale = 6, heigh
   const sides = useMemo(() => (closed ? sideLengths(points) : []), [points, closed]);
 
   const ptsStr = points.map(p => `${p.x * scale},${p.y * scale}`).join(" ");
+  const refPtsStr = referencePolygon?.map(p => `${p.x * scale},${p.y * scale}`).join(" ");
   const gridSize = scale * 5; // 5 ft
 
   return (
@@ -131,6 +133,18 @@ export function PlanEditor({ value, onChange, readOnly = false, scale = 6, heigh
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
+
+          {/* Reference polygon (e.g. ground floor) */}
+          {referencePolygon && referencePolygon.length > 0 && (
+            <polygon 
+              points={refPtsStr} 
+              fill="none" 
+              stroke="hsl(var(--muted-foreground) / 0.4)" 
+              strokeWidth="1.5" 
+              strokeDasharray="4 4"
+              className="pointer-events-none"
+            />
+          )}
 
           {points.length > 0 && (
             closed ? (

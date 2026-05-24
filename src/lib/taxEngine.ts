@@ -9,7 +9,7 @@ export interface TaxAttributes {
 
 const BASE_RATE = 10; // 10 currency units per square foot
 
-export function calculateTax(area: number, attributes: TaxAttributes): number {
+export function calculateTax(area: number, attributes: TaxAttributes, isMultiFloorDrawn: boolean = false): number {
   let multiplier = 1.0;
 
   // Usage multiplier
@@ -29,7 +29,8 @@ export function calculateTax(area: number, attributes: TaxAttributes): number {
   else if (attributes.gardenSize === "large") multiplier *= 1.2;
 
   // Multiply by number of floors since area is usually just ground footprint
-  const totalEffectiveArea = area * (attributes.floors || 1);
+  // UNLESS `isMultiFloorDrawn` is true, in which case `area` is already the exact sum of all drawn floors.
+  const totalEffectiveArea = isMultiFloorDrawn ? area : area * (attributes.floors || 1);
 
   const totalTax = totalEffectiveArea * BASE_RATE * multiplier;
 
