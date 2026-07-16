@@ -19,6 +19,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -42,6 +48,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+const AMENITY_OPTIONS = [
+  { id: "swimming_pool", label: "Swimming Pool", badge: "+20%", color: "text-amber-400 border-amber-400/30 bg-amber-400/10" },
+  { id: "garage", label: "Garage", badge: "+10%", color: "text-blue-400 border-blue-400/30 bg-blue-400/10" },
+  { id: "air_conditioning", label: "Air Conditioning", badge: "+15%", color: "text-cyan-400 border-cyan-400/30 bg-cyan-400/10" },
+  { id: "solar_panels", label: "Solar Panels", badge: "-10% Eco", color: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10" },
+  { id: "security_system", label: "Security System", badge: "+5%", color: "text-purple-400 border-purple-400/30 bg-purple-400/10" },
+  { id: "backup_generator", label: "Backup Generator", badge: "+10%", color: "text-orange-400 border-orange-400/30 bg-orange-400/10" },
+  { id: "overhead_water_tank", label: "Overhead Water Tank", badge: "+5%", color: "text-rose-400 border-rose-400/30 bg-rose-400/10" },
+];
+
 export default function NewProperty() {
   const router = useRouter();
 
@@ -59,13 +75,15 @@ export default function NewProperty() {
   // Attributes
   const [flooring, setFlooring] = useState("cement");
   const [floors, setFloors] = useState(1);
-  const [hasPool, setHasPool] = useState(false);
-  const [hasGarage, setHasGarage] = useState(false);
+  const [amenities, setAmenities] = useState<string[]>([]);
   const [gardenSize, setGardenSize] = useState("none");
   const [usage, setUsage] = useState("residential");
   const [yearBuilt, setYearBuilt] = useState<number | "">(
     new Date().getFullYear()
   );
+  const [roofingMaterial, setRoofingMaterial] = useState("tile");
+  const [wallType, setWallType] = useState("brick");
+  const [propertyCondition, setPropertyCondition] = useState("good");
 
   useEffect(() => {
     setFloorPoints((prev) => {
@@ -141,18 +159,28 @@ export default function NewProperty() {
     setShowDropdown(false);
   };
 
+  const toggleAmenity = (id: string) => {
+    setAmenities((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   // Live tax calc
   const taxAmount = useMemo(
     () =>
       calculateTax(area, {
         flooring,
         floors,
-        hasPool,
-        hasGarage,
+        hasPool: amenities.includes("swimming_pool"),
+        hasGarage: amenities.includes("garage"),
         gardenSize,
         usage,
+        roofingMaterial,
+        wallType,
+        propertyCondition,
+        amenities,
       }, true), // isMultiFloorDrawn = true
-    [area, flooring, floors, hasPool, hasGarage, gardenSize, usage]
+    [area, flooring, floors, amenities, gardenSize, usage, roofingMaterial, wallType, propertyCondition]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,11 +208,15 @@ export default function NewProperty() {
           attributes: {
             flooring,
             floors,
-            hasPool,
-            hasGarage,
+            hasPool: amenities.includes("swimming_pool"),
+            hasGarage: amenities.includes("garage"),
             gardenSize,
             usage,
             yearBuilt: yearBuilt || undefined,
+            roofingMaterial,
+            wallType,
+            propertyCondition,
+            amenities,
           },
           taxAmount,
           assignedUserEmail: email,
@@ -429,49 +461,118 @@ export default function NewProperty() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Garden Size</Label>
-                    <Select value={gardenSize} onValueChange={setGardenSize}>
-                      <SelectTrigger id="garden-select" className="h-9 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        <SelectItem value="small">Small</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="large">Large</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Roofing Material</Label>
+                      <Select value={roofingMaterial} onValueChange={(val) => setRoofingMaterial(val)}>
+                        <SelectTrigger id="roofing-select" className="h-9 text-sm">
+                          <SelectValue placeholder="Select roofing" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tile">Tile</SelectItem>
+                          <SelectItem value="asbestos">Asbestos</SelectItem>
+                          <SelectItem value="concrete_slab">Concrete Slab</SelectItem>
+                          <SelectItem value="metal">Metal</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Wall Type</Label>
+                      <Select value={wallType} onValueChange={(val) => setWallType(val)}>
+                        <SelectTrigger id="wall-select" className="h-9 text-sm">
+                          <SelectValue placeholder="Select wall type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="brick">Brick</SelectItem>
+                          <SelectItem value="cement_block">Cement Block</SelectItem>
+                          <SelectItem value="wood">Wood</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  <div className="space-y-2 pt-1">
-                    <Label className="text-xs text-muted-foreground">Amenities</Label>
-                    <div className="flex items-center space-x-2 p-2.5 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
-                      <Checkbox
-                        id="pool"
-                        checked={hasPool}
-                        onCheckedChange={(c) => setHasPool(!!c)}
-                      />
-                      <Label htmlFor="pool" className="text-sm cursor-pointer flex-1">
-                        Swimming Pool
-                      </Label>
-                      {hasPool && (
-                        <Badge variant="secondary" className="text-[10px]">+20%</Badge>
-                      )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Garden Size</Label>
+                      <Select value={gardenSize} onValueChange={(val) => setGardenSize(val)}>
+                        <SelectTrigger id="garden-select" className="h-9 text-sm">
+                          <SelectValue placeholder="Select garden size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="small">Small</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="large">Large</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="flex items-center space-x-2 p-2.5 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors">
-                      <Checkbox
-                        id="garage"
-                        checked={hasGarage}
-                        onCheckedChange={(c) => setHasGarage(!!c)}
-                      />
-                      <Label htmlFor="garage" className="text-sm cursor-pointer flex-1">
-                        Garage
-                      </Label>
-                      {hasGarage && (
-                        <Badge variant="secondary" className="text-[10px]">+10%</Badge>
-                      )}
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Property Condition</Label>
+                      <Select value={propertyCondition} onValueChange={(val) => setPropertyCondition(val)}>
+                        <SelectTrigger id="condition-select" className="h-9 text-sm">
+                          <SelectValue placeholder="Select condition" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="excellent">Excellent</SelectItem>
+                          <SelectItem value="good">Good</SelectItem>
+                          <SelectItem value="fair">Fair</SelectItem>
+                          <SelectItem value="needs_repair">Needs Repair</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Amenities (Multi-Select)</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between h-auto min-h-[36px] py-1.5 px-3 bg-background border-input font-normal hover:bg-background/80"
+                        >
+                          {amenities.length === 0 ? (
+                            <span className="text-muted-foreground text-sm">Select amenities...</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1 items-center">
+                              {amenities.map((id) => {
+                                const opt = AMENITY_OPTIONS.find((o) => o.id === id);
+                                return (
+                                  <Badge
+                                    key={id}
+                                    variant="secondary"
+                                    className="text-[11px] px-2 py-0.5 font-medium border border-border/60 shadow-xs"
+                                  >
+                                    {opt?.label || id}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <span className="text-muted-foreground text-xs ml-2">▼</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-[280px]" align="start">
+                        {AMENITY_OPTIONS.map((option) => (
+                          <DropdownMenuCheckboxItem
+                            key={option.id}
+                            checked={amenities.includes(option.id)}
+                            onCheckedChange={() => toggleAmenity(option.id)}
+                            onSelect={(e) => e.preventDefault()}
+                            className="flex items-center justify-between py-2 text-sm cursor-pointer"
+                          >
+                            <span>{option.label}</span>
+                            <Badge variant="outline" className={`text-[10px] ml-2 ${option.color}`}>
+                              {option.badge}
+                            </Badge>
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardContent>
               </Card>
@@ -607,6 +708,37 @@ export default function NewProperty() {
                           : flooring === "tile"
                           ? "Tile (×1.2)"
                           : "Cement (×1.0)",
+                    },
+                    {
+                      label: "Roofing",
+                      value:
+                        roofingMaterial === "concrete_slab"
+                          ? "Concrete Slab"
+                          : roofingMaterial.charAt(0).toUpperCase() + roofingMaterial.slice(1),
+                    },
+                    {
+                      label: "Wall Type",
+                      value:
+                        wallType === "cement_block"
+                          ? "Cement Block"
+                          : wallType.charAt(0).toUpperCase() + wallType.slice(1),
+                    },
+                    {
+                      label: "Condition",
+                      value:
+                        propertyCondition === "needs_repair"
+                          ? "Needs Repair"
+                          : propertyCondition.charAt(0).toUpperCase() + propertyCondition.slice(1),
+                    },
+                    {
+                      label: "Amenities",
+                      value:
+                        amenities.length === 0
+                          ? "None"
+                          : `${amenities.length} selected (${amenities
+                              .map((id) => AMENITY_OPTIONS.find((o) => o.id === id)?.label)
+                              .filter(Boolean)
+                              .join(", ")})`,
                     },
                   ].map((row) => (
                     <div
