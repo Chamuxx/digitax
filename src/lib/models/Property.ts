@@ -16,6 +16,10 @@ export interface IProperty extends Document {
     gardenSize: string; // e.g., 'none', 'small', 'medium', 'large'
     usage: string; // 'residential' or 'commercial'
     yearBuilt?: number;
+    roofingMaterial?: string;
+    wallType?: string;
+    propertyCondition?: string;
+    amenities?: string[];
   };
   taxAmount: number;
   assignedUserEmail: string;
@@ -49,6 +53,10 @@ const PropertySchema: Schema = new Schema({
     gardenSize: { type: String, required: true, default: "none" },
     usage: { type: String, required: true, default: "residential" },
     yearBuilt: { type: Number },
+    roofingMaterial: { type: String, required: true, default: "tile" },
+    wallType: { type: String, required: true, default: "brick" },
+    propertyCondition: { type: String, required: true, default: "good" },
+    amenities: { type: [String], default: [] },
   },
   taxAmount: { type: Number, required: true },
   assignedUserEmail: { type: String, required: true },

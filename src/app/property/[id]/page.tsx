@@ -25,6 +25,8 @@ import {
   Flower2,
   Building2,
   Trash2,
+  ShieldCheck,
+  Boxes,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@clerk/nextjs";
@@ -44,6 +46,10 @@ interface PropertyData {
     gardenSize: string;
     usage: string;
     yearBuilt?: number;
+    roofingMaterial?: string;
+    wallType?: string;
+    propertyCondition?: string;
+    amenities?: string[];
   };
   taxAmount: number;
   assignedUserEmail: string;
@@ -348,6 +354,45 @@ export default function PropertyDetails() {
                           },
                         ]
                       : []),
+                    ...(property.attributes.roofingMaterial
+                      ? [
+                          {
+                            icon: Home,
+                            label: "Roofing",
+                            value:
+                              property.attributes.roofingMaterial === "concrete_slab"
+                                ? "Concrete Slab"
+                                : property.attributes.roofingMaterial,
+                            color: "text-orange-400",
+                          },
+                        ]
+                      : []),
+                    ...(property.attributes.wallType
+                      ? [
+                          {
+                            icon: Boxes,
+                            label: "Wall Type",
+                            value:
+                              property.attributes.wallType === "cement_block"
+                                ? "Cement Block"
+                                : property.attributes.wallType,
+                            color: "text-rose-400",
+                          },
+                        ]
+                      : []),
+                    ...(property.attributes.propertyCondition
+                      ? [
+                          {
+                            icon: ShieldCheck,
+                            label: "Condition",
+                            value:
+                              property.attributes.propertyCondition === "needs_repair"
+                                ? "Needs Repair"
+                                : property.attributes.propertyCondition,
+                            color: "text-cyan-400",
+                          },
+                        ]
+                      : []),
                   ].map((attr) => (
                     <div
                       key={attr.label}
@@ -361,6 +406,44 @@ export default function PropertyDetails() {
                     </div>
                   ))}
                 </div>
+
+                {/* Amenities Block */}
+                {((property.attributes.amenities && property.attributes.amenities.length > 0) ||
+                  property.attributes.hasPool ||
+                  property.attributes.hasGarage) && (
+                  <div className="mt-4 pt-3 border-t border-border/50">
+                    <div className="text-xs text-muted-foreground mb-2 font-medium">Included Amenities</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(property.attributes.amenities && property.attributes.amenities.length > 0
+                        ? property.attributes.amenities
+                        : [
+                            ...(property.attributes.hasPool ? ["swimming_pool"] : []),
+                            ...(property.attributes.hasGarage ? ["garage"] : []),
+                          ]
+                      ).map((id) => {
+                        const labels: Record<string, { label: string; badge: string; color: string }> = {
+                          swimming_pool: { label: "Swimming Pool", badge: "+20%", color: "text-amber-400 bg-amber-400/10 border-amber-400/30" },
+                          garage: { label: "Garage", badge: "+10%", color: "text-blue-400 bg-blue-400/10 border-blue-400/30" },
+                          air_conditioning: { label: "Air Conditioning", badge: "+15%", color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30" },
+                          solar_panels: { label: "Solar Panels", badge: "-10% Eco", color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30" },
+                          security_system: { label: "Security System", badge: "+5%", color: "text-purple-400 bg-purple-400/10 border-purple-400/30" },
+                          backup_generator: { label: "Backup Generator", badge: "+10%", color: "text-orange-400 bg-orange-400/10 border-orange-400/30" },
+                          overhead_water_tank: { label: "Overhead Water Tank", badge: "+5%", color: "text-rose-400 bg-rose-400/10 border-rose-400/30" },
+                        };
+                        const item = labels[id] || { label: id, badge: "", color: "text-foreground bg-secondary/40 border-border" };
+                        return (
+                          <span
+                            key={id}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${item.color}`}
+                          >
+                            <span>{item.label}</span>
+                            {item.badge && <span className="text-[10px] opacity-90 font-bold">({item.badge})</span>}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
