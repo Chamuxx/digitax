@@ -178,7 +178,7 @@ export default function DeclarePropertyPage() {
                   <Input
                     id="address"
                     required
-                    placeholder="e.g. 123 Main St, Colombo 03"
+                    placeholder="e.g. 123 Main St, Kurunegala"
                     className="h-9"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}

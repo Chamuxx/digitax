@@ -45,9 +45,9 @@ import Link from "next/link";
 export default function NewProperty() {
   const router = useRouter();
 
-  // Location (default: Colombo, Sri Lanka)
-  const [lat, setLat] = useState(6.9271);
-  const [lng, setLng] = useState(79.8612);
+  // Location (default: Kurunegala, Sri Lanka)
+  const [lat, setLat] = useState(7.4818);
+  const [lng, setLng] = useState(80.3609);
 
   // Geometry
   const [floorPoints, setFloorPoints] = useState<Point[][]>([[]]);
