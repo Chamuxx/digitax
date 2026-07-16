@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Printer,
+  FileDown,
   ChevronLeft,
   MapPin,
   Home,
@@ -31,6 +32,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
+import { generatePropertyAssessmentPDF } from "@/lib/pdfGenerator";
 
 interface PropertyData {
   _id: string;
@@ -64,6 +66,7 @@ export default function PropertyDetails() {
   const [property, setProperty] = useState<PropertyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const isAdmin = user?.publicMetadata?.role === "admin";
   const backLink = isAdmin ? "/admin" : "/dashboard";
@@ -102,6 +105,20 @@ export default function PropertyDetails() {
       toast.error(e.message || "Failed to delete");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!property) return;
+    setGeneratingPdf(true);
+    try {
+      generatePropertyAssessmentPDF(property);
+      toast.success("Professional PDF report downloaded successfully!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to generate PDF report.");
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
@@ -173,11 +190,22 @@ export default function PropertyDetails() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.print()}
+              onClick={handleDownloadPDF}
+              disabled={generatingPdf}
               id="print-report-btn"
+              className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 font-medium"
+            >
+              <FileDown className="mr-1.5 h-4 w-4" />
+              {generatingPdf ? "Generating PDF..." : "Download PDF Report"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              title="Quick Browser Print"
             >
               <Printer className="mr-1.5 h-4 w-4" />
-              Print Report
+              Print
             </Button>
             {isAdmin && (
               <Button
